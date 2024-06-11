@@ -5,6 +5,7 @@ import json
 import numpy as np
 from PIL import Image
 import geopandas as gp
+import pandas as pd
 import os
 from shapely.geometry import Point, LineString, Polygon
 
@@ -15,13 +16,13 @@ def unique(list1):
             unique_list.append(x)
     return unique_list
 
-buildings = gp.read_file("building_konaklar.shp")
+buildings = gp.read_file("building_kalkinma.shp")
 centroid = buildings.centroid
 lons = list(centroid.x)
 lats = list(centroid.y)
 panoIds = []
 #lat, lon = 40.99771765148172, 39.77149431400864
-GOOGLE_MAPS_API_KEY = "AIzaSyDqottGUfvxiYc6s_G9qHQzTtNaM7dhl08"
+GOOGLE_MAPS_API_KEY = "your api key"
 
 headers = {'Content-Type': 'application/json'}
 data = """{"mapType": "streetview","language": "en-US", "region": "US"}"""
@@ -29,17 +30,25 @@ response = requests.post("https://tile.googleapis.com/v1/createSession?key={}".f
 SESSION_TOKEN = response.json()['session']
 
 for i in range(len(lats)):
-    try:
-        panos = streetview.panoids(lat=lats[i], lon=lons[i])
-        first = panos[0]['panoid']
-        panoIds.append(first)
-    except: 
-        IndexError
+    panos = streetview.panoids(lat=lats[i], lon=lons[i])
+    if len(panos) == 0:
+        continue
+    else:
+        try:
+            panos_df = pd.DataFrame(panos)
+            panos_sorted = panos_df.sort_values(by='year', ascending=False)
+            panoIds.append(panos_sorted.iloc[0]["panoid"])
+        except KeyError:
+            panoIds.append(panos[0]["panoid"])
+        
+
+
 
 panoIds_u = unique(panoIds)
 
 
 for iD in panoIds_u:
+    print(iD)
     g1 = requests.get("https://tile.googleapis.com/v1/streetview/tiles/{}/{}/{}?session={}&key={}&panoId={}".format(2,0,0,SESSION_TOKEN, GOOGLE_MAPS_API_KEY,iD))
     g2 = requests.get("https://tile.googleapis.com/v1/streetview/tiles/{}/{}/{}?session={}&key={}&panoId={}".format(2,1,0,SESSION_TOKEN, GOOGLE_MAPS_API_KEY,iD))
     g3 = requests.get("https://tile.googleapis.com/v1/streetview/tiles/{}/{}/{}?session={}&key={}&panoId={}".format(2,2,0,SESSION_TOKEN, GOOGLE_MAPS_API_KEY,iD))
